@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+      - /app/node_modules # добавьте это, чтобы избежать конфликта
+    command: ["npm", "run", "build"]
+  
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./scripts/nginx.conf:/etc/nginx/nginx.conf
+      - ./dist:/var/www/html
+    ports:
+      - "80:80"
+    depends_on:
+      - app

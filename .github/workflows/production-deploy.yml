@@ -1,0 +1,71 @@
+name: Production Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+permissions: write-all
+
+jobs:
+  # action instruction https://dev.to/kenessajr/deploy-a-react-app-to-digitalocean-using-github-actions-and-docker-4pln
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v2
+
+      - name: ⎔ Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: 18
+
+      - name: 📥 Install dependencies
+        run: |
+          npm install --legacy-peer-deps
+
+      - name: 🚀 Build project
+        run: npm run build
+
+      - name: 📦 Copy project to server
+        uses: appleboy/scp-action@master
+        with:
+          source: "*"
+          target: '~/app'
+          port: 22
+          host: ${{ secrets.PROD_API_HOST }}
+          username: ${{ secrets.PROD_API_USERNAME }}
+          password: ${{ secrets.PROD_API_PASSWORD }}
+          timeout: '120s'
+        
+      - name: 🗑️ Remove all tar.gz files from server
+        uses: appleboy/ssh-action@master
+        env:
+            GH_USERNAME: ${{ secrets.GH_USERNAME }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.PROD_API_HOST }}
+          username: ${{ secrets.PROD_API_USERNAME }}
+          password: ${{ secrets.PROD_API_PASSWORD }}
+          port: 22
+          envs: GH_USERNAME, GITHUB_TOKEN
+          script: |
+            find ~ -type f -name '*.tar.gz' -exec rm -f {} +
+
+      - name: 🚀 Pull packages in DigitalOcean server
+        uses: appleboy/ssh-action@master
+        env:
+            GH_USERNAME: ${{ secrets.GH_USERNAME }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.PROD_API_HOST }}
+          username: ${{ secrets.PROD_API_USERNAME }}
+          password: ${{ secrets.PROD_API_PASSWORD }}
+          port: 22
+          envs: GH_USERNAME, GITHUB_TOKEN
+          script: |
+            docker system prune -a -f
+            cd ~/app
+            docker-compose down
+            docker-compose up -d
+    
